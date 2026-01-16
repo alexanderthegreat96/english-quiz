@@ -1,4 +1,4 @@
-# English Learner Pro: Grammar Quiz App
+# English Learner - Quiz App
 
 A full-stack web application designed to help users practice English grammar. The project features a **FastAPI** backend for question management and validation, paired with a responsive **Tailwind CSS** frontend that tracks user progress using local storage.
 
@@ -39,10 +39,10 @@ A full-stack web application designed to help users practice English grammar. Th
 ```
 .
 ├── main.py              # FastAPI Application & Endpoints
+|── questions_provider.py # The questions themselves
 ├── index.html           # Frontend Application
 ├── core/                # Backend logic directory
 │   ├── question.py      # Question class logic
-│   └── question_provider.py # Data source for quiz questions
 ├── Dockerfile           # Backend container definition
 ├── docker-compose.yml   # Multi-container orchestration (API: 8000, Web: 8080)
 ├── requirements.txt     # Python dependencies
@@ -64,9 +64,9 @@ Ensure you have Docker and Docker Compose installed.
     
 2. **Access the App**:
     
-    - **Frontend**: [http://localhost:8080](https://www.google.com/search?q=http://localhost:8080 "null")
+    - **Frontend**: [http://localhost:8080](http://localhost:8080)
         
-    - **Backend API**: [http://localhost:8000](https://www.google.com/search?q=http://localhost:8000 "null")
+    - **Backend API**: [http://localhost:8000](http://localhost:8000 "null")
         
 
 ### Option 2: Local Manual Setup
@@ -105,4 +105,4 @@ Validates a user's selection based on `question_index` and `selected_index`.
 
 ## 🛡️ License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License.
