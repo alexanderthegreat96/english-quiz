@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Learner Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @keyframes highlight {
+            0% {
+                background-color: #dbeafe;
+            }
+
+            100% {
+                background-color: white;
+            }
+        }
+
+        .scroll-highlight {
+            animation: highlight 2s ease-out;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 p-4 md:p-10">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-blue-800 text-center">English Grammar Quiz</h1>
+
+        <div class="sticky top-0 bg-white shadow-md p-4 mb-6 z-10 border-b-4 border-blue-500 rounded-b-lg">
+            <div class="flex justify-between items-center mb-2">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-700">Your Progress</h2>
+                    <p class="text-sm text-gray-500">
+                        First-try: <span id="first-time-score" class="font-bold text-green-600">0</span>
+                        | Errors: <span id="wrong-score" class="font-bold text-red-600">0</span>
+                        | Completed: <span id="total-finished" class="font-bold text-blue-600">0 from 0</span>
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="resume-btn" onclick="scrollToCurrent()"
+                        class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-xs font-bold uppercase transition shadow-sm hidden">
+                        Resume
+                    </button>
+                    <button onclick="resetProgress()"
+                        class="bg-red-50 text-red-600 px-3 py-1 rounded hover:bg-red-100 text-xs font-bold border border-red-200 uppercase">
+                        Reset
+                    </button>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div id="loading-state" class="text-center p-10 text-gray-500">Loading your lesson...</div>
+        <div id="quiz-container" class="space-y-6"></div>
+    </div>
+
+    <script>
+        let questionsGlobal = [];
+        let progress = JSON.parse(localStorage.getItem('english_quiz_progress')) || {
+            attempts: {},
+            completed: {},
+            wrong_answers: {},
+            selected_indices: {}
+        };
+
+        function saveProgress() {
+            localStorage.setItem('english_quiz_progress', JSON.stringify(progress));
+            updateProgressUI();
+        }
+
+        async function loadQuestions() {
+            try {
+                const response = await fetch('http://localhost:8000/questions');
+                if (!response.ok) throw new Error("Backend offline");
+
+                questionsGlobal = await response.json();
+
+                if (!questionsGlobal || questionsGlobal.length === 0) {
+                    throw new Error("No questions found in database");
+                }
+
+                document.getElementById('loading-state').classList.add('hidden');
+                const container = document.getElementById('quiz-container');
+                container.innerHTML = '';
+
+                questionsGlobal.forEach((q, index) => {
+                    const isDone = progress.completed[index];
+                    const wasFirstTimeCorrect = progress.attempts[index];
+                    const savedIdx = progress.selected_indices[index];
+
+                    let questionText = q.question;
+                    let resultHTML = "";
+
+                    if (isDone && q.variants && q.variants[q.answer] !== undefined) {
+                        const correctWord = q.variants[q.answer];
+                        const colorClass = wasFirstTimeCorrect ? 'text-green-600' : 'text-blue-600';
+
+                        questionText = q.question.replace(/{blank}|_{3,}/g,
+                            `<span class="${colorClass} font-bold underline decoration-2">${correctWord}</span>`);
+
+                        resultHTML = wasFirstTimeCorrect ? "✅ Correct!" : `Answer: ${correctWord}`;
+                    }
+
+                    const card = document.createElement('div');
+                    card.id = `card-${index}`;
+                    card.className = "question-card bg-white p-6 rounded-lg shadow-md border border-gray-100 transition-all";
+                    card.innerHTML = `
+                        <p class="text-xl mb-4 font-medium text-gray-800" id="text-${index}">${questionText}</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            ${q.variants.map((v, i) => {
+                        let btnStyle = "bg-blue-50 text-blue-700 border-blue-200";
+
+                        if (isDone && i === savedIdx) {
+                            btnStyle = wasFirstTimeCorrect ? "bg-green-500 text-white border-green-600" : "bg-red-400 text-white border-red-500";
+                        }
+                        return `
+                                <button onclick="checkAnswer(${index}, ${i})" 
+                                        ${isDone ? 'disabled' : ''}
+                                        class="${btnStyle} font-semibold py-2 px-4 rounded-md border transition-colors ${isDone ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-100'}">
+                                    ${v}
+                                </button>`;
+                    }).join('')}
+                        </div>
+                        <div id="result-${index}" class="mt-4 min-h-[1.5rem] font-bold ${wasFirstTimeCorrect ? 'text-green-600' : 'text-blue-600'}">
+                            ${resultHTML}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+
+                document.getElementById('resume-btn').classList.remove('hidden');
+                updateProgressUI();
+            } catch (error) {
+                document.getElementById('loading-state').innerHTML = `<div class="bg-red-50 text-red-600 p-4 rounded">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function checkAnswer(qIdx, vIdx) {
+            if (progress.completed[qIdx]) return;
+            const response = await fetch('http://localhost:8000/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question_index: qIdx, selected_index: vIdx })
+            });
+            const data = await response.json();
+            const resultDiv = document.getElementById(`result-${qIdx}`);
+            const textDiv = document.getElementById(`text-${qIdx}`);
+            const card = document.getElementById(`card-${qIdx}`);
+
+            progress.selected_indices[qIdx] = vIdx;
+            if (!(qIdx in progress.attempts)) progress.attempts[qIdx] = data.is_correct;
+
+            if (data.is_correct) {
+                progress.completed[qIdx] = true;
+                resultDiv.innerHTML = "✅ Correct!";
+                resultDiv.className = "mt-4 font-bold text-green-600";
+                textDiv.innerHTML = textDiv.innerText.replace(/{blank}|_{3,}/g, `<span class="text-green-600 font-bold underline">${data.correct_word}</span>`);
+                card.querySelectorAll('button').forEach(btn => btn.disabled = true);
+                saveProgress();
+            } else {
+                progress.wrong_answers[qIdx] = true;
+                resultDiv.innerHTML = `<div class="flex items-center gap-3"><span class="font-bold text-red-600">❌ Try again!</span><button onclick="revealAnswer(${qIdx}, '${data.correct_word}')" class="text-xs bg-gray-600 text-white font-bold py-1 px-3 rounded shadow-sm">Reveal Answer</button></div>`;
+                saveProgress();
+            }
+        }
+
+        function revealAnswer(qIdx, correctWord) {
+            if (!(qIdx in progress.attempts)) progress.attempts[qIdx] = false;
+            progress.wrong_answers[qIdx] = true;
+            progress.completed[qIdx] = true;
+            document.getElementById(`text-${qIdx}`).innerHTML = document.getElementById(`text-${qIdx}`).innerText.replace(/{blank}|_{3,}/g, `<span class="text-blue-600 font-bold underline">${correctWord}</span>`);
+            document.getElementById(`result-${qIdx}`).innerHTML = `<span class="text-blue-600 italic">Answer: ${correctWord}</span>`;
+            document.getElementById(`card-${qIdx}`).querySelectorAll('button').forEach(btn => btn.disabled = true);
+            saveProgress();
+        }
+
+        function scrollToCurrent() {
+            let targetIndex = 0;
+            for (let i = 0; i < questionsGlobal.length; i++) {
+                if (!progress.completed[i]) { targetIndex = i; break; }
+            }
+            const targetElement = document.getElementById(`card-${targetIndex}`);
+            if (targetElement) {
+                const headerOffset = 150;
+                const elementPosition = targetElement.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                window.scrollTo({ top: offsetPosition, behavior: "smooth" });
+                targetElement.classList.add('scroll-highlight');
+                setTimeout(() => targetElement.classList.remove('scroll-highlight'), 2000);
+            }
+        }
+
+        function updateProgressUI() {
+            const totalQuestions = questionsGlobal.length;
+            const finishedCount = Object.keys(progress.completed).length;
+            const firstTimeCount = Object.values(progress.attempts).filter(val => val === true).length;
+            const errorCount = Object.keys(progress.wrong_answers).length;
+            document.getElementById('first-time-score').innerText = firstTimeCount;
+            document.getElementById('wrong-score').innerText = errorCount;
+            document.getElementById('total-finished').innerText = `${finishedCount} from ${totalQuestions}`;
+            if (totalQuestions > 0) {
+                const percentage = (finishedCount / totalQuestions) * 100;
+                document.getElementById('progress-bar').style.width = `${percentage}%`;
+                if (percentage === 100) document.getElementById('resume-btn').classList.add('hidden');
+            }
+        }
+
+        function resetProgress() {
+            if (confirm("Reset everything?")) { localStorage.removeItem('english_quiz_progress'); location.reload(); }
+        }
+
+        window.onload = loadQuestions;
+    </script>
+</body>
+
+</html>
