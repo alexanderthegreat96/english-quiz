@@ -1,7 +1,6 @@
 # This stores the questions and answers
 
-questions_db = [
-    # --- ORIGINAL DATA ---
+questions_db : list[dict] = [
     # TENSES & VERBS
     {"question": "I {blank} to the park yesterday.", "answer": 1, "variants": ["go", "went", "gone", "going"], "is_correct": False},
     {"question": "She {blank} her breakfast right now.", "answer": 3, "variants": ["eat", "eats", "ate", "is eating"], "is_correct": False},
